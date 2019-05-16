@@ -36,7 +36,9 @@ import be.cytomine.formats.supported.PyramidalTIFFFormat
 import be.cytomine.formats.supported.digitalpathology.OpenSlideMultipleFileFormat
 import be.cytomine.formats.lightconvertable.VIPSConvertable
 import be.cytomine.formats.supported.digitalpathology.OpenSlideSingleFileTIFFFormat
+import be.cytomine.formats.videoformat.VideoFormat
 import grails.converters.JSON
+import org.apache.tools.ant.taskdefs.Sleep
 import utils.FilesUtils
 
 class UploadService {
@@ -112,7 +114,11 @@ class UploadService {
             runAsync {
 //            backgroundService.execute("deployImagesAndGroups", {
                 log.info "Async upload"
-                deployImagesAndGroups(cytomine, currentFile, uploadedFile, projects, properties, isSync, result)
+                try {
+                    deployImagesAndGroups(cytomine, currentFile, uploadedFile, projects, properties, isSync, result)
+                } catch (Exception e) {
+                    println e.printStackTrace()
+                }
 //            })
             }
         }
@@ -247,6 +253,66 @@ class UploadService {
 
         uploadedFile.set("contentType", format.mimeType);
         uploadedFile = (UploadedFile) cytomine.updateModel(uploadedFile)
+
+        if(format instanceof VideoFormat)
+        {
+
+            cytomine.editUploadedFile(uploadedFile.id, 7) // status TO_CONVERT
+            boolean errorFlag = false
+            String errorMsg = ""
+            Thread tFFMPEG, tVIPS
+            int nbFrames
+            try
+            {
+                tFFMPEG = format.convert() // try catch et status conversion ERROR
+            }
+            catch (Exception e)
+            {
+                errorFlag = true
+                errorMsg += e.getMessage()
+            }
+
+            nbFrames = format.getNbFrames()
+
+            if (nbFrames < 0)
+            {
+                errorFlag = true
+                errorMsg = "Invalid frame count"
+            }
+            else
+            {
+                for (int i = 1; i <= nbFrames; i++)
+                {
+                    String jpgFilePath = new String(format.absoluteFilePath + sprintf("%d.jpg", i))
+                    File jpgFile = new File(jpgFilePath)
+
+                    while (!jpgFile.exists())
+                    {
+                        sleep(1)
+                    }
+
+                    tVIPS = new Thread(new Runnable()
+                    {
+                        public void run()
+                        {
+                            def deployed = deploy(cytomine, jpgFile, null, uploadedFile, metadata)
+                        }
+                    })
+                    tVIPS.start()
+                }
+                tVIPS.join()
+            }
+
+            if(errorFlag)
+            {
+                uploadedFile = cytomine.editUploadedFile(uploadedFile.id, 8) // status ERROR CONVERSION
+                throw new DeploymentException(errorMsg)
+            }
+            else
+            {
+                cytomine.editUploadedFile(uploadedFile.id, 1) // status CONVERTED
+            }
+        }
 
         if(format instanceof IConvertableImageFormat){
             cytomine.editUploadedFile(uploadedFile.id, 7) // status TO_CONVERT

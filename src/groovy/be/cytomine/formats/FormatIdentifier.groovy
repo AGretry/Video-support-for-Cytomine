@@ -39,6 +39,7 @@ import be.cytomine.formats.supported.JPEG2000Format
 import be.cytomine.formats.supported.PyramidalTIFFFormat
 import be.cytomine.formats.supported.digitalpathology.*
 import be.cytomine.formats.supported.SupportedImageFormat
+import be.cytomine.formats.videoformat.MP4Format
 import grails.util.Holders
 import org.apache.commons.lang.RandomStringUtils
 import org.openslide.OpenSlide
@@ -193,7 +194,12 @@ public class FormatIdentifier {
 
         } else {
 
-            Format testedFormat = new ZipFormat()
+            Format testedFormat = new MP4Format()
+            testedFormat.absoluteFilePath = filePath
+            if(testedFormat.detect())
+                return testedFormat
+
+            testedFormat = new ZipFormat()
             testedFormat.absoluteFilePath = filePath
             if(testedFormat.detect())
                 return testedFormat
