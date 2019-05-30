@@ -25,7 +25,7 @@ class MP4Format extends VideoFormat
     public Thread convert()
     {
         //Launch FFMPEG extraction in a thread
-        def command = ["ffmpeg -i ${absoluteFilePath} -vf -c:a ${absoluteFilePath}%d.jpg"]
+        def command = ["ffmpeg -i ${absoluteFilePath} -an ${absoluteFilePath}%d.jpg"]
         Thread tFFMPEG = new Thread(new Runnable()
         {
             public void run()
